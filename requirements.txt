@@ -1,4 +1,4 @@
-# Bang 的编译/演奏工具链真正 import 的第三方包，版本钉在 .venv 里实测过的那一套。
+# Hyoushi 的编译/演奏工具链真正 import 的第三方包，版本钉在 .venv 里实测过的那一套。
 #
 # 换机器 / 重装：
 #   python -m venv .venv
