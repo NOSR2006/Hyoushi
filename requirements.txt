@@ -1,0 +1,33 @@
+# Bang 的编译/演奏工具链真正 import 的第三方包，版本钉在 .venv 里实测过的那一套。
+#
+# 换机器 / 重装：
+#   python -m venv .venv
+#   .venv\Scripts\python -m pip install -r requirements.txt
+#   启动面板.bat 会优先用 .venv，找不到才回落到全局 python
+#
+numpy==2.4.1
+opencv-python==5.0.0.93            # 只当掩码引擎：note_mask 与 sprite_strips 的谓词一字未动，
+                                   # 换成 inRange + 饱和 uint8 减法后逐帧逐位相等
+                                   # （tools/probes/maskfast.py 拿 numpy 版当 oracle 钉这件事），
+                                   # 代价是每帧 12.2->6.2 / 49.6->17.4 ms，重锁投票回到捕获节奏以内。
+                                   # 2026-10-06 从 headless 换成带 GUI 的那条：windows-capture 的
+                                   # 元数据写死 `Requires: opencv-python`，而两个发行包装的是同一批
+                                   # cv2 文件 —— 同时装会互相删（卸掉任一条，cv2 就整个没了，得
+                                   # `--force-reinstall` 另一条），所以只留一条，功能上逐位相同
+windows-capture==2.0.1             # tools/hostcap.py 的 WGC 通路（`run.py --host`）：按窗口抓
+                                   # 帧，实测回调 60.0 fps（screencap 那条是 3.6 fps）。它按类名找
+                                   # MuMu 的 `nemuwin` 插件、先把窗口调到插件正好 1280x720 再切片，
+                                   # 与一张 screencap 对齐自检（含颜色映射）后才启用；缺包、抓不到
+                                   # 插件或对不上就安静退回 adb —— 那一条由 framewriter PART 9/10 钉
+pillow==12.1.0
+pypinyin==0.55.0            # 谱面库的中文标题转拼音，搜索框按 py / pyJoin / pyInitials / pyAlt 查
+darkdetect==0.8.0           # tools/m3_theme.py 的 resolve_appearance()：读不到系统主题就按浅色
+material-color-utilities==0.2.6  # tools/gen_m3_tokens.py 用它从种子色算出整份色板（tools/m3_tokens.json）；
+                                # probes/m3tokens.py 再用同一个库把每一格重算一遍比回来 —— 故意装的，别卸
+flet==1.0.3                 # 面板（tools/flet_gui.py）的 Python 侧，4 MB。只有面板要它 ——
+                            # 演奏链路（run/player/calib/detect/…）一个 import 都没有
+flet-desktop==1.0.3         # 它的 Flutter 桌面客户端**不在 wheel 里**：首次运行会去 GitHub 下
+                            # flet-windows.zip（约 40 MB，缓存在 ~/.flet）。国内直连 github.com 会超时，
+                            # 本机是把 zip 直接塞进 .venv/Lib/site-packages/flet_desktop/app/ 绕过的；
+                            # 换机器/重建 venv 要重做这一步（见 docs/python_env.md）。
+                            # 代价之一是客户端是独立进程且没有离屏模式 —— 所以 fletviewcheck 要桌面会话

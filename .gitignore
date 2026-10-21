@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 随包的 minitouch 二进制（tools/locate.py 找它，装机时自己放或从设备 pull 回来）。
+tools/bin/
+
+# research/ 是本机的运行与取证目录：谱面、录像、截图、日志、实机记录都不入库，
+# 只留一份结构说明。跑起来之后这些东西会自己长出来（见 research/README.md）。
+research/*
+!research/README.md
+
+# evidence/ 是探针读的夹具，全是游戏画面，版权归原方，不随仓库分发。
+# 需要时自己跑一局把帧拍下来、按 tools/probes/README.md 的口径钉住。
+evidence/
+
+# 文件工具写盘时留下的锁文件（带斜杠只盖一层，所以用无斜杠写法盖全树）。
+.dsh-ops-update-*.lock
+
+# 根目录那个 0 字节的 PATH 是一次误重定向留下的，留条忽略以防再出现。
+/PATH

@@ -1,0 +1,11 @@
+# 面板启动器必须是 LF：tools/probes/launchers.py PART 1 会断言 .bat 里没有 CR。
+# 本机（Windows）core.autocrlf=true，不钉这一条的话新克隆会把 启动面板.bat 检出成 CRLF，回归直接红。
+*.bat text eol=lf
+
+# 源码一律 LF：本机 autocrlf=true 会把 .py 检出成 CRLF，于是同一份文件的字节在
+# 「工作区 / 索引 / git show HEAD:」三处各不一样（2026-10-06 我给 tools/hostcap.py 打补丁时
+# 就撞上过：src.count(旧片段) 命中 0 次，因为磁盘上是 CRLF 而索引里是 LF）。
+# 钉成 LF 之后工作区、索引、HEAD 三者同字节，`git diff` 也才看得见真正的改动。
+# 只加 `*.py`：二进制（evidence/*.png）与 .md 不在这次的问题范围里，别顺手扩大面。
+*.py text eol=lf
+
