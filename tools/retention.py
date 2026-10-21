@@ -105,6 +105,12 @@ LEDGER = os.path.join("logs", "retention.log")
 # basename 比，跨目录同名极少，而且宁可多留一个也不删错。
 REF_RE = re.compile(r"research/(?:[A-Za-z0-9_.+-]+/)*([A-Za-z0-9_.+-]+)")
 
+# 2026-10-22：`AGENTS.md`、`docs/panel_spec.md`、`tools/probes/README.md` 不再进公开仓库
+# （用户裁定：这几份是最详细的内部工程记录）。它们从 `git grep` 的视野里消失了，但本机
+# 仍要按同一口径保护取证帧 —— 所以下面 `referenced()` 额外把这几份读一遍盘。
+LOCAL_DOCS = ("AGENTS.md", "docs/panel_spec.md", "tools/probes/README.md",
+              "docs/data_format.md", "docs/m3_sources.md", "docs/agents_manual.md")
+
 # 每个桶一条：key 取自 `_bucket()`，cap 单位 MB，rule 决定 `--go` 能对它做什么。
 #   junk    面板的 debug/stale 判据能删的桶 —— `--go` 删它们，不看上限（判据本身就是「没人打得开」）
 #   frames  调试截图 —— 垃圾照 junk 删；剩下的取证帧是证据，只有 `--media` 且超过上限时按
@@ -210,24 +216,35 @@ def _rel(path):
 
 
 def referenced():
-    """被**已跟踪的文件**点名的取证帧（`research/frames/x.png` / `research/result/y.png`）。
+    """被文档点名的取证帧（`research/frames/x.png` / `research/result/y.png`）。
 
     这些名字出现在 `AGENTS.md`、`docs/`、探针的 docstring 里 —— 它们是给人回看的路标，
     自动删除会把文档指向空气。`git grep` 一次拿到（不读盘、只读索引里的内容），
-    拿到多少都不会慢；git 不可用就当「一个都没被点名」。
+    拿到多少都不会慢。
+
+    不随仓库分发的那几份（`LOCAL_DOCS`）不在 git 索引里，直接读盘补一遍 —— 所以 git
+    不可用时也照常读它们，不是「一个都没被点名」。
     """
+    names = set()
     try:
         out = subprocess.run(["git", "grep", "-o", "-I", "-E",
                               r"research/([A-Za-z0-9_.+-]+/)*[A-Za-z0-9_.+-]+"],
                              cwd=ROOT, capture_output=True, timeout=60,
                              creationflags=CREATE_NO_WINDOW)
     except (OSError, subprocess.SubprocessError):
-        return set()
-    if out.returncode not in (0, 1):
-        return set()
-    names = set()
-    for line in out.stdout.decode("utf-8", "replace").splitlines():
-        for m in REF_RE.finditer(line):
+        out = None
+    if out is not None and out.returncode in (0, 1):
+        for line in out.stdout.decode("utf-8", "replace").splitlines():
+            for m in REF_RE.finditer(line):
+                names.add(m.group(1))
+    for rel in LOCAL_DOCS:
+        try:
+            with open(os.path.join(ROOT, *rel.split("/")), encoding="utf-8",
+                      errors="replace") as fh:
+                text = fh.read()
+        except OSError:
+            continue
+        for m in REF_RE.finditer(text):
             names.add(m.group(1))
     return names
 

@@ -505,8 +505,36 @@ def part7():
     return keep_ok and drop_ok and tooth and arch and arch_neo
 
 
+def part8():
+    """不随仓库分发的那几份文档也参与点名（2026-10-22）。
+
+    `AGENTS.md`、`docs/panel_spec.md`、`tools/probes/README.md` 已从 git 跟踪里移除，
+    `referenced()` 因此改成「git grep + 直接读 `LOCAL_DOCS` 这几份盘上的文件」。
+    临时树里把 `retention.ROOT` 指向一棵**不是 git 仓库**的目录（顺带证明 git 不可用时
+    仍然读本地文档），只写一份 `AGENTS.md` 点名某张帧 ⇒ 必须被捞到。
+    牙 = 把 `LOCAL_DOCS` 清空 ⇒ 捞不到。
+    """
+    real_root, real_docs = retention.ROOT, retention.LOCAL_DOCS
+    tmp = tempfile.mkdtemp(prefix="retention_local_")
+    name = "local_keep.png"
+    try:
+        os.makedirs(os.path.join(tmp, "research", "frames"), exist_ok=True)
+        with open(os.path.join(tmp, "AGENTS.md"), "w", encoding="utf-8") as f:
+            f.write("取证帧：`research/frames/%s`\n" % name)
+        retention.ROOT = tmp
+        keep_ok = name in retention.referenced()
+        retention.LOCAL_DOCS = ()
+        tooth = name not in retention.referenced()
+    finally:
+        retention.ROOT, retention.LOCAL_DOCS = real_root, real_docs
+        shutil.rmtree(tmp, ignore_errors=True)
+    print(f"本地文档点名：AGENTS.md 里的帧被捞到 {keep_ok}；牙（LOCAL_DOCS 清空）-> 捞不到 {tooth}")
+    return keep_ok and tooth
+
+
 def main():
-    ok = part1() and part2() and part3() and part4() and part5() and part6() and part7()
+    ok = (part1() and part2() and part3() and part4() and part5() and part6() and part7()
+          and part8())
     print("RETENTION " + ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 

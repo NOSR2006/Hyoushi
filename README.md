@@ -1,181 +1,162 @@
-# Hyoushi — OurNotes 自动演奏
+# Hyoushi
 
-在 **MuMu 安卓模拟器**里替用户打音乐游戏 **OurNotes**：从社区谱面库下载并编译谱面 →
-用游戏自己的判定线做视觉锚定、把时钟锁到谱面 t0 → 按编译好的时间用 minitouch 注入触摸 →
-读结算页验收。目标是 **ALL PERFECT（AP）**：每个判定物都落在 ±50 ms 内。
+替你在 MuMu 模拟器里自动打 **OurNotes** 的小工具：认出当前是哪首曲子、把节拍对准、自动点击、打完
+再把成绩读回来记进表格。目标是 **ALL PERFECT**（每一击都落在游戏判定的 ±50 ms 之内）。
 
-- 面板：`启动面板.bat`（Flet / Material 3，仓库里唯一的面板）
-- 命令行：`tools/run.py`（一局）、`tools/run.py --multi`（多人激奏演出）
-- 回归与牙的索引：`tools/probes/README.md`；一次付清的全套：`tools/verify.py --tier C`
-- 给接手 agent 的治理文件：`AGENTS.md`（事实与红线以它为准）
+- 跑在 **Windows** 上，配 **MuMu 模拟器**，模拟器分辨率固定 **1280×720**。
+- 两种玩法：**单人演出**（你自己选曲）／**多人演出**（激奏演出，曲子由房间抽，和别的玩家同场）。
+- 有图形界面（双击 `启动面板.bat`），也可以用命令行。
 
-## 风险与边界（先读这一节）
+> 同人工具，与游戏官方、MuMu 官方均无关系，仓库里不含任何游戏文件、音乐、谱面数据。
+> 用脚本玩在线游戏有账号风险（服务条款、封号），**后果自负** —— 动手前请读一遍
+> [DISCLAIMER.md](DISCLAIMER.md)，其中载明了使用边界、风险与责任划分。
 
-- 这个工具**替用户操作他自己的账号**。游戏服务条款怎么看待自动化操作，风险落在**用户的账号**上，
-  与本仓库无关 —— 自己判断要不要用。
-- 它**绝不修改游戏资源、绝不花任何货币**；结算页的**达成奖励列表永不点**（唯一合法的是 `关闭`），
-  商店的**购买永不点**。这些不是礼貌，是硬红线（`AGENTS.md`「硬规矩」）。
-- 它只做一件事：按谱面时间注入触摸、把游戏走回乐曲選択页。它不刷分、不改数据、不碰存档。
-- 完整的风险清单、责任范围与使用请求见 **[`DISCLAIMER.md`](DISCLAIMER.md)** —— 用之前请读一遍。
+## 一、它做什么、不做什么
 
-## 支持矩阵（超出即不支持）
-
-| 项 | 要求 |
+| 做 | 不做 |
 |---|---|
-| 系统 | Windows（抓帧走 MuMu 渲染器 SDK；`adb screencap` 是 278 ms 的兜底通道） |
-| 模拟器 | MuMu（现役；adb 端点默认 `127.0.0.1:16384`） |
-| 分辨率 | 模拟器固定 **1280×720**（分辨率或封装不对时会**拒绝读帧**，不会静默读错） |
-| Python | **3.13**，用本仓库自己的 `.venv`（全局环境不算数） |
+| 读屏幕上的画面，认出当前页面、曲目与难度 | 不修改、不替换游戏程序与资源 |
+| 按谱面时间表自动点击（走安卓的触摸注入） | 不碰游戏存档，不花一分货币，不领任何奖励 |
+| 曲中实时校正时间偏差 | 不绕过付费，不规避检测，不含任何破解功能 |
+| 打完读结算页，把成绩写进本地记录 | 不联网上传你的任何数据（没有遥测） |
 
-其他模拟器/分辨率/系统不在支持范围内 —— 判据会拒绝，而不是跑出难查的错。
+## 二、开始之前
 
-分辨率不对时**改模拟器、不要改代码**：MuMu 里把分辨率设成 **1280×720**（`工具/设置 → 显示 → 分辨率`，
-并确认没有开「自适应/高帧率缩放」之类的封装改写），然后重跑。判据按这个分辨率调过，代码里那几个
-常数（`tools/detect.py` 的 `W`/`H`、`tools/compile.py:25` 的 `JUDGE_Y`、透视梯形与色相键）改了会把
-别的判据一起弄坏 —— 报错信息也会指回这一节。
+1. **Windows 10 / 11**，装了 **MuMu 模拟器**，模拟器里装好 OurNotes，能正常进游戏。
+2. 模拟器设置里把分辨率固定为 **1280×720**（这是硬要求，别的尺寸程序会直接拒绝读画面）。
+3. 电脑上装 **Python 3.13**（安装时勾选「Add python.exe to PATH」）。
+4. **不用另外准备点击发生程序** —— `tools/bin/minitouch` 已经随仓库带了一份（第三方组件，
+   Apache-2.0，来历见 `tools/bin/NOTICE.md`）。它会在开机时自动推到模拟器里，你什么都不用做。
+   真丢了这个文件也不要紧：`locate.py` 会提示缺哪一项，模拟器里通常还留着上次推上去的那份，
+   拉回来即可 —— `adb pull /data/local/tmp/minitouch_bang tools\bin\minitouch`
+   （`adb.exe` 在 MuMu 安装目录里，例如 `D:\MuMuPlayer\nx_main\adb.exe`）。
 
-## 安装
+## 三、安装（四步）
+
+在仓库根目录打开命令提示符（或 PowerShell），依次执行：
 
 ```bat
-:: 1) 克隆之后，在本仓库根目录建环境（解释器用 Python 3.13）
+:: 1) 建虚拟环境并装依赖
 python -m venv .venv
 .venv\Scripts\python -m pip install -r requirements.txt
 
-:: 2) 装 Flet 的桌面客户端（只有面板要它）
-::    flet-desktop 的 Flutter 客户端不在 wheel 里，首次运行会去 GitHub 下 flet-windows.zip
-::    （约 40 MB）。国内直连会超时，把 zip 放进
-::    .venv\Lib\site-packages\flet_desktop\app\ 即可（或用 FLET_CLIENT_URL 指到镜像）。
-::    细节见 docs/python_env.md。
-
-:: 3) 自检路径（见下）
+:: 2) 检查外部依赖找得到没有（这一步输出「启动校验：通过」再往下）
 .venv\Scripts\python tools\locate.py
+
+:: 3) 下载谱面并编译（首次几分钟；以后是增量的）
+.venv\Scripts\python tools\fetch_charts.py
+
+:: 4) 启动图形界面（也可以直接双击 启动面板.bat）
+.venv\Scripts\python tools\flet_gui.py
 ```
 
-**路径**：`adb.exe`、minitouch、MuMu 的渲染器 DLL 都不在仓库里。默认值是本机历史路径
-（`D:\MuMuPlayer\...`、`D:/Downloads/...`），换机器用环境变量指到自己的位置：
+`locate.py` 的预期输出长这样：
 
-| 环境变量 | 是什么 |
+```
+adb              D:\MuMuPlayer\nx_main\adb.exe  [default, 在]
+device           127.0.0.1:16384  [default, 端点]
+minitouch        D:\CodeX\Hyoushi\tools\bin\minitouch  [default:bundled, 在]
+mumucap_dll      D:\MuMuPlayer\nx_main\sdk\external_renderer_ipc.dll  [default, 在]
+mumucap_install  D:\MuMuPlayer  [default, 在]
+启动校验：通过
+```
+
+出现「缺失」时用环境变量指过去（设置后要**重启面板**才生效）：
+
+| 环境变量 | 指什么 |
 |---|---|
+| `HYOUSHI_MUMU_ROOT` | MuMu 安装目录（最省事，adb 与渲染器 DLL 都从它推） |
 | `HYOUSHI_ADB` | `adb.exe` 的完整路径 |
-| `HYOUSHI_DEVICE` | adb 端点（默认 `127.0.0.1:16384`） |
-| `HYOUSHI_MINITOUCH` | minitouch 可执行文件（EvATive7 版） |
-| `HYOUSHI_MUMU_ROOT` | MuMu 安装根目录（派生渲染器 DLL 与 SDK 安装路径） |
-| `HYOUSHI_MUMUCAP_DLL` / `HYOUSHI_MUMUCAP_INSTALL` | 单独覆盖上面两项派生的结果 |
+| `HYOUSHI_DEVICE` | 设备端口，默认 `127.0.0.1:16384` |
+| `HYOUSHI_MINITOUCH` | minitouch 可执行文件的完整路径 |
 
-`tools/locate.py` 会把这些打出来并告诉你缺什么、该设哪个变量；`tools/run.py` 与面板
-**开跑前**就校验，缺 adb/minitouch 会当场拒绝（而不是三分钟后以「走页停住」的样子失败）。
-渲染器 DLL 缺失**不拦**：`--fastcap` 装不上时自动落到窗口 / adb 抓帧。
+**第一次启动面板**会下载 Flet 桌面客户端（约 40 MB，从 GitHub 取）。网络不通时看
+[docs/python_env.md](docs/python_env.md) 里的离线办法。
 
-**谱面库不在 git 里**（`research/charts/*.raw.json` / `*.hits.json` 是 gitignored 的大件）。
-第一次用要自己拉：
+## 四、打一局
 
-```bat
-.venv\Scripts\python tools\fetch_charts.py            :: 下载全目录并编译（增量，可 --force）
-.venv\Scripts\python tools\fetch_charts.py --pin      :: 记录已验证谱面的钉子（可提交）
-```
+1. 先把游戏打开，**停在「楽曲選択」（乐曲选择）页**（停在这一页最省事：工具不必先到别处找路）。
+2. 双击 `启动面板.bat`，左边选 **单人演出**（或 **多人演出**）。
+3. 右边选参数，不懂就保持默认：连续演出轮数、断 AP 重试次数、火力门（消耗加成道具，默认开）。
+4. 按 **F5**（或点「开始演奏」）。游戏会自己走页面、开打、打完、再走回楽曲選択页。
+5. 中途停止用「本轮停止」；无响应时用「强制终止」。
 
-## 快速开始
+面板一共五页，`Ctrl+1`～`Ctrl+5` 切换：**单人演出 / 多人演出 / 运行日志 / 结算记录 / 设置**。
+曲中的实时读数（动作数、修正量、迟到、剩余时间）在运行卡下面那行四格里。一局打完想看细节，
+到「结算记录」页选中那一行，点表头的「这一局」。
 
-游戏（B 站官服 OurNotes）开着、停在任意页面都行（面板自己走页；停在乐曲選択页最省事）。
+**打完再开打**：不用你管。工具每局结束（包括中途放弃的）都会把游戏走回楽曲選択页；
+一局 AP 了是否继续、间隔多久，都由面板设置决定。
 
-**面板**：双击 `启动面板.bat`。左边「单人演出 / 多人演出」，右边配参数（连续演出轮数、
-断 AP 重试、火力门……），F5 开始。面板与 CLI 共用 `research/gui_state.json` 里的状态。
+## 五、想调手感
 
-**命令行**（照抄面板的参数）：
+同一台机器上「游戏判定」和「程序发出点击」之间有一个固定延迟，默认按 **+55 ms** 提前量发出
+（这个数是这台机器量出来的，别人机器可能不同）。第一局若满屏 GREAT/GOOD，说明提前量与本机不匹配。
 
-```bat
-:: 单人：自己挑谱（--song <musicId>[:难度]），或 --random 让游戏随机抽
-.venv\Scripts\python.exe tools\run.py --song 100056:expert ^
-  --fastcap --offset 55 --live-push-cap 0 --watch-hud --retry-on-break 5 --tag gNNN
+- 设置页的「种类偏移」可以按音符种类微调提前量（白键 / 滑键 / 长条 / 引导 / 尾判滑键），
+  单位毫秒；默认值即出厂值，**不确定时保持不动**。
+- 链路校准：加 `--read-split` 跑几局，程序会从结算页的 FAST/SLOW 分布里自己修正那个延迟；
+  默认关闭，因为它需要多局才收敛。
 
-:: 多人（激奏演出）：房间自己抽曲，谱面在準備页上认出来
-.venv\Scripts\python.exe tools\run.py --multi ^
-  --fastcap --offset 55 --live-push-cap 0 --tag mpNNN
-```
+## 六、常见问题
 
-四条 CLI 规矩（每条都踩过，细节在 `AGENTS.md`「三分钟上手」）：取号要 fresh 读
-`research/gui_state.json` 的 `next_index`；不要设 `OURNOTES_PANEL`；每局超时 ≥900 s；
-开跑前只读地认谱（`--song` 是例外，它自己走到那一首）。
-
-## 首次校准
-
-- **`--offset`（名义 +55 ms）是这台机器的测量值**：链路（按下 → 判定）比谱面晚/早多少，
-  每台机器不同。想量它就在命令行加 `--read-split`（调试开关）：结算页会多读一次 FAST/SLOW
-  直方图，`tools/run.py` 把它折成 `research/chain_cal.json` 里的 `corr`（有效 offset = 名义 +
-  corr，默认 corr 让 eff = 45 ms）。默认**不读**（少按一次、少等 2 s），所以 `corr` 平时不动。
-  收敛要几局，别用一局的读数下结论。
-- 标定脚本在 `tools/probes/`：`fieldcal.py`（场地/判定线几何）、`calibrate_map.py`（MuMu 窗口
-  与设备的映射）、`retry_probe.py`（重开锚点）。首次上手建议按这个顺序各跑一遍。
-- 每回合（含中途放弃）结束时工具会把游戏**走回乐曲選択页**；回家那趟不会按任何「开打」按钮。
-
-## 目录
-
-| 位置 | 是什么 |
+| 现象 | 怎么办 |
 |---|---|
-| `tools/run.py` | 一局的全部编排（CLI 入口） |
-| `tools/player.py` | 编译动作 + 火把循环 + 中段修正 |
-| `tools/calib.py` | 走页认页、暂停→重试锚点、重锁 |
-| `tools/detect.py` | 掩码 / blob / 投票（判定线几何的唯一定义在 `tools/compile.py`） |
-| `tools/flet_gui.py` / `tools/panel_core.py` | 面板视图层 / 业务逻辑（后者不 import GUI） |
-| `tools/locate.py` | 外部路径与环境变量（见上） |
-| `tools/retention.py` | 落盘预算：`--check` / `--go` / `--media` / `--dedupe` / `--auto` / `--gc` |
-| `tools/verify.py` | 验收编排（默认 F = 开工自检 5 步 13 s；`--tier C` = 发版那一趟 ~11 min） |
-| `tools/` | 36 个模块的分工与「加模块之前」的规矩见 `tools/README.md`；52 条回归见 `tools/probes/README.md` |
-| `research/` | 工作区：结算记录、链路校准、谱面、帧、录像（**全部 gitignored**，跑起来自己长出来）；每个桶的写入方与保留规则见 `research/README.md` |
-| `evidence/` | 回归夹具：钉住的帧、谱面钉子（**不入库**，见下） |
-| `docs/` | 面板细则（`panel_spec.md`）、上游格式副本、Python 环境约定 |
+| 提示「找不到本工具要用的程序」 | `locate.py` 看是哪一项缺失，按上表设环境变量；minitouch 见「开始之前」第 4 条 |
+| 提示「设备没连上」/ `device not found` | 模拟器没开，或 MuMu 换过端口：先 `adb connect 127.0.0.1:16384` |
+| 提示分辨率或画面格式不对 | 模拟器设置改 **1280×720**；**不要去改代码里的判据常数** |
+| 一直读不出页面、在同一页反复动作 | 把游戏停在「楽曲選択」页再开；游戏刚启动时前几个页面会卡几秒，正常 |
+| 满屏 GREAT，一个 PERFECT 都没有 | 提前量不对（见上节），或机器卡顿（关闭占用 CPU 的其他程序） |
+| 多人局一直匹配不到人 | 房间内没有其他玩家。工具等待 2 分钟会取消重排，一局最多重试两次 |
+| 面板打不开 / 白屏 | 第一次要下载 Flet 客户端，网络问题见 docs/python_env.md；仍不行看 `research/logs/` 下的面板日志 |
+| 谱面列表是空的 | 没跑 `tools/fetch_charts.py`，或上游暂时不可达 |
 
-仓库里**只放能跑起来的那部分**：`tools/`（程序本体与回归）、`docs/`、`README.md` / `AGENTS.md`、
-`requirements.txt`、`启动面板.bat`。下面两类是**本机自备件**，不在仓库里：
+## 七、命令行（可选）
 
-- `evidence/` 的夹具帧、`research/` 的一切产物：前者是游戏画面（版权归原方），后者是本机的
-  录像、帧、日志与实机记录，体积大且只对这台机器有意义。要跑探针就自己跑一局把帧拍下来，
-  按 `tools/probes/README.md` 的口径钉住。
-- `research/charts/` 的谱面：`tools/fetch_charts.py` 从上游拉（见「快速开始」）。
-
-## 验证
-
-**默认不跑探针。** 时间预算默认给开发：写完、`py_compile` 过、能起来就进下一步。只有四种情况才跑测试
-（细则见 `AGENTS.md` 的「改动怎么验：带牙 + 按需」）：改了判据／守卫／牙本身、改了某个模块的核心行为
-（检测阈值、时钟与偏移、注入、走查分支、结算读数）、你要求验、发版前。
+面板能做的事命令行都能做，适合后台批量运行或脚本化：
 
 ```bat
-:: 开工自检（编译 + 作用域 + 外部路径 + 窗口钉子 + 谱面钉子，约 13 s；不带参数就是 F 档）
-.venv\Scripts\python.exe tools\verify.py
+:: 指定曲目单局（100056 = 曲目 id，难度 easy/normal/hard/expert 任选）
+.venv\Scripts\python.exe tools\run.py --song 100056:expert ^
+  --fastcap --offset 55 --live-push-cap 0 --watch-hud --tag g901
 
-:: 单条回归（看最后一行 PASS/FAIL）
-.venv\Scripts\python.exe tools\probes\hudgate.py
+:: 让游戏自己随机选曲
+.venv\Scripts\python.exe tools\run.py --random --fastcap --offset 55 --live-push-cap 0 --tag g902
 
-:: 只拆一条牙（B 档的常态：改判据就只拆那一条）
-.venv\Scripts\python.exe tools\probes\fletpanel.py --teeth tailplace
-
-:: 全套探针（36 条，清单见 tools/probes/README.md；只在发版或怀疑大面积回归时跑）
-for %p in (hudgate framewriter freshfeed chartpin navgates spritebars breakstop pushcap tailmargin ^
-           paths endpointheal scopes chaincal hudcount logclass roundgap maskfast capreg srcfail recoverwalk counterrec ^
-           mtdiag teethretry panelfly launchers paneldata m3tokens fieldstamp retention votereplay watchdog firepath ^
-           fletgui fletpanel fletfont fletfly) do @.venv\Scripts\python.exe tools\probes\%p.py
+:: 多人演出（曲子由房间抽，难度默认 expert，可加 --diff hard）
+.venv\Scripts\python.exe tools\run.py --multi --fastcap --offset 55 --live-push-cap 0 --tag mp901
 ```
 
-- 绝大多数探针**零设备零联网**，本机直接跑。`capreg` / `mtdiag` 需要模拟器 adb 在线。
-- `fletfly` / `fletpanel` / `fletfont` 要开真 Flutter 窗口，**必须在真实桌面上跑**（Flet 桌面客户端没有离屏模式）；`fletviewcheck` 的十二面像素基线 2026-10-21 退役（它从 10-09 起一直红着、从没拦过东西）。
-- 每条修复都配一个**会 FAIL 的回归**（把守卫关掉重放必须看见差别），不是只打印数字的脚本 —— 这条纪律没有放松。
+几个要注意的点：
 
-## 许可证
+- `--tag` 是这一局的编号，会和面板共用计数器（`research/gui_state.json` 的 `next_index`）。
+  重复的编号会被拒绝。
+- 一局最长可能跑五分钟以上，若用 `timeout` 限制时长请给足 **900 秒**。
+- 从命令行跑不要设 `OURNOTES_PANEL` 环境变量，否则结算记录会写到另一处。
 
-**GNU Affero General Public License v3.0**（AGPL-3.0）—— 全文在 [`LICENSE`](LICENSE)，SPDX 标识
-`AGPL-3.0-only`。一句话：**随便用、随便改、随便商用，但改了要开源，网络服务也一样。**
+## 八、目录里都有什么
 
-- **允许**：运行、修改、再分发、商业使用（含在公司里当生产力工具）。
-- **要求**：分发或**通过网络提供服务**时，必须把对应源码（含你的修改）一并提供；
-  衍生作品必须同样以 AGPL-3.0 授权。保留版权与许可声明。
-- **无担保**：这是自动化工具，判定打歪了、成绩没进、账号出了状况，作者不按任何担保负责
-  （条款第 15、16 条，具体风险见 [`DISCLAIMER.md`](DISCLAIMER.md)）。
+| 位置 | 内容 |
+|---|---|
+| `启动面板.bat` | 双击启动图形界面 |
+| `tools/` | 全部程序代码（入口 `run.py`，界面 `flet_gui.py`，模块分工见 `tools/README.md`） |
+| `docs/` | 仅 `python_env.md`（Python 环境与 Flet 客户端约定）；其余内部与上游文档留在本机、不随仓库分发 |
+| `research/` | 运行数据：结算记录、校准数据、谱面、日志（不随仓库分发，跑起来会自己生成） |
+| `tools/bin/` | 随包的 `minitouch` 可执行文件与它的第三方声明 |
+| `tools/probes/` | 回归测试与标定脚本（开发者用，不影响使用） |
 
-**使用边界（不是许可条款，是作者的请求）**：这个工具会替你打歌。单人房里随便用；**多人「激奏演出」
-是和真人同场**，请不要在没有事先说明的房间里开着它 —— 那不是技术问题，是别把别人的一局毁掉。
-把它做成付费代练服务在许可证上是允许的，但作者不认可这种用法。
+仓库只放「能跑起来的那部分」。`evidence/`（画面夹具）、`research/` 的产物、谱面数据、以及开发
+过程的内部记录都不在仓库里 —— 谱面用 `tools/fetch_charts.py` 自己下载，其余需要时自己采集。
 
-- 仓库里**不含**游戏本体、游戏资源或上游谱面数据（`research/charts/` 是 gitignored 的本地下载结果），
-  那些内容的权利属于各自的版权方。
-- `requirements.txt` 里的第三方依赖各自适用其原始许可证（`docs/nnnotes_readme.md` 是从上游抄来的
-  格式说明，那一份仍按上游的许可走）。
+## 九、许可与免责
+
+- 代码以 **GNU AGPL-3.0** 授权，全文见 [`LICENSE`](LICENSE)。可以自由使用、修改、再分发
+  （含商用），但分发修改版或把它做成网络服务时，须以同一许可公开对应源码。
+- 使用边界与风险（非许可条款，是作者的请求）：**多人模式是和真人同场**，别在别人不知情时开；
+  拿去做付费代练、刷分服务这类事，许可证允许，但作者不认可也不提供任何支持。
+- 因使用本工具导致的账号处罚、数据损失等后果，由使用者自行承担。完整条款见
+  [`DISCLAIMER.md`](DISCLAIMER.md)。
+- 第三方组件：`tools/bin/minitouch` 来自 openstf/minitouch（Apache-2.0），许可全文与来历说明
+  见 `tools/bin/NOTICE.md` 与 `tools/bin/LICENSE-APACHE-2.0.txt`。该组件不在 AGPL 覆盖范围内。
+
+问题与建议走本仓库的 issue；涉及权利主张的通知，按 `DISCLAIMER.md` 第六条办理。

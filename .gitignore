@@ -3,8 +3,12 @@ __pycache__/
 *.pyc
 .venv/
 
-# 随包的 minitouch 二进制（tools/locate.py 找它，装机时自己放或从设备 pull 回来）。
-tools/bin/
+# 随包的 minitouch 二进制：仓库里带一份（第三方 Apache-2.0，来历与许可见
+# tools/bin/NOTICE.md），克隆下来即零配置；目录里其余临时件不入库。
+tools/bin/*
+!tools/bin/minitouch
+!tools/bin/NOTICE.md
+!tools/bin/LICENSE-APACHE-2.0.txt
 
 # research/ 是本机的运行与取证目录：谱面、录像、截图、日志、实机记录都不入库，
 # 只留一份结构说明。跑起来之后这些东西会自己长出来（见 research/README.md）。
@@ -20,3 +24,21 @@ evidence/
 
 # 根目录那个 0 字节的 PATH 是一次误重定向留下的，留条忽略以防再出现。
 /PATH
+
+# 内部工程记录与第三方文档副本不随仓库分发（2026-10-22 裁定）。
+#   AGENTS.md               开发约定、踩坑记录、游戏侧行为的现场记录
+#   docs/panel_spec.md      面板判据、几何与用词
+#   tools/probes/README.md  52 条回归的索引，以及每一条钉住了什么
+#   docs/chart_schema.json、docs/nnnotes_readme.md  第三方文档副本
+#   docs/data_format.md、docs/m3_sources.md  面向二次开发的接口说明与令牌来源表
+# 这些文件本机照常使用；tools/retention.py 的 LOCAL_DOCS 会把它们读一遍，
+# 因此其中点名的取证帧不会因为「不在 git 索引里」而失去保护。
+/AGENTS.md
+docs/panel_spec.md
+docs/chart_schema.json
+tools/probes/README.md
+docs/nnnotes_readme.md
+docs/data_format.md
+docs/m3_sources.md
+# 内部手册：由 AGENTS.md 拆出（历史战报、欠账全文、UI 详规），2026-10-22
+docs/agents_manual.md
