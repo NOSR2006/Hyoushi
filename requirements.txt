@@ -19,7 +19,7 @@ windows-capture==2.0.1             # tools/hostcap.py 的 WGC 通路（`run.py -
                                    # MuMu 的 `nemuwin` 插件、先把窗口调到插件正好 1280x720 再切片，
                                    # 与一张 screencap 对齐自检（含颜色映射）后才启用；缺包、抓不到
                                    # 插件或对不上就安静退回 adb —— 那一条由 framewriter PART 9/10 钉
-pillow==12.1.0
+pillow==13.0.0
 pypinyin==0.55.0            # 谱面库的中文标题转拼音，搜索框按 py / pyJoin / pyInitials / pyAlt 查
 darkdetect==0.8.0           # tools/m3_theme.py 的 resolve_appearance()：读不到系统主题就按浅色
 material-color-utilities==0.2.6  # tools/gen_m3_tokens.py 用它从种子色算出整份色板（tools/m3_tokens.json）；
